@@ -127,9 +127,7 @@ function filterSites() {
         return !!m.data[col];
       });
     }
-    var onMap = map.hasLayer(m.marker);
-    if (visible && !onMap) map.addLayer(m.marker);
-    if (!visible && onMap) map.removeLayer(m.marker);
+    m.marker.setOpacity(visible ? 1 : 0);
   });
 }
 
