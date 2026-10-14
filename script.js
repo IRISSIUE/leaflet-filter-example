@@ -34,35 +34,9 @@ loadSiteData()
 // ============================================
 
 function addMarkersAndFiltersToMap(locations) {
-  var filtersList = document.getElementById("filters-list");
-  filtersList.innerHTML = "";
+  renderFiltersFromLocations(locations);
 
-  var fields = getFieldNames(locations);
-  var filters = getFilterableFields(fields);
-
-  // allow flexible field names for latitude, longitude, name, and description
-  var latField = findFieldName(fields, ["lat", "latitude"]);
-  var lonField = findFieldName(fields, ["lon", "lng", "long", "longitude"]);
-  var nameField = findFieldName(fields, ["name", "title"]);
-  var descField = findFieldName(fields, ["description", "desc", "details"]);
-
-  if (!latField || !lonField) {
-    filtersList.textContent = "CSV missing lat/lon columns";
-    return;
-  }
-
-  renderFiltersFromLocations(filters, filtersList);
-
-  var bounds = renderMarkersFromLocations(
-    locations,
-    {
-      latField: latField,
-      lonField: lonField,
-      nameField: nameField,
-      descField: descField,
-    },
-    filters,
-  );
+  var bounds = renderMarkersFromLocations(locations);
 
   if (bounds.length) map.fitBounds(bounds);
 
@@ -73,14 +47,20 @@ function addMarkersAndFiltersToMap(locations) {
 // High-level functions
 // ============================================
 
-function renderFiltersFromLocations(filters, filtersList) {
+function renderFiltersFromLocations(locations) {
+  var filtersHTMLElement = document.getElementById("filters-list");
+  filtersHTMLElement.innerHTML = "";
+
+  var fields = getFieldNames(locations);
+  var filters = getFilterableFields(fields);
+
   if (!filters.length) {
-    filtersList.textContent = "No filter columns found";
+    filtersHTMLElement.textContent = "No filter columns found";
     return;
   }
 
   filters.forEach(function (filter) {
-    var id = toSafeId(filter.key);
+    var id = generateFilterIDFromText(filter.key);
     var label = document.createElement("label");
     var input = document.createElement("input");
     input.type = "checkbox";
@@ -92,33 +72,38 @@ function renderFiltersFromLocations(filters, filtersList) {
     span.style.marginLeft = "6px";
     span.textContent = filter.label;
     label.appendChild(span);
-    filtersList.appendChild(label);
+    filtersHTMLElement.appendChild(label);
   });
 }
 
-function renderMarkersFromLocations(locations, fields, filters) {
+function renderMarkersFromLocations(locations) {
   var bounds = [];
 
-  locations.forEach(function (row) {
-    var lat = parseFloat(row[fields.latField]);
-    var lon = parseFloat(row[fields.lonField]);
+  var fields = getFieldNames(locations);
+  var filters = getFilterableFields(fields);
+
+  locations.forEach(function (location) {
+    const lat = parseFloat(location["Lat"]);
+    const lon = parseFloat(location["Lon"]);
     if (!isFinite(lat) || !isFinite(lon)) {
+      var filtersHTMLElement = document.getElementById("filters-list");
+      filtersHTMLElement.innerHTML = "No Lat or Lon specified";
       return;
     }
+    const name = location["Name"] ? location["Name"] : "";
+    const desc = location["Description"] ? location["Description"] : "";
 
-    var filterValues = {};
+    var filterNames = {};
     filters.forEach(function (filter) {
-      filterValues[filter.key] = parseBool(row[filter.key]);
+      filterNames[filter.key] = parseBool(location[filter.key]);
     });
 
     var marker = L.marker([lat, lon]);
-    var infoName = fields.nameField ? row[fields.nameField] : "";
-    var infoDesc = fields.descField ? row[fields.descField] : "";
-    var popupHtml = buildPopupHtml(infoName, infoDesc, filterValues);
+    var popupHtml = buildPopupHtml(name, desc, filterNames);
     marker.bindPopup(popupHtml);
     marker.addTo(map);
 
-    markers.push({ marker: marker, data: filterValues });
+    markers.push({ marker: marker, data: filterNames });
     bounds.push([lat, lon]);
   });
 
@@ -221,7 +206,7 @@ function parseBool(value) {
   return text === "1" || text === "true" || text === "yes" || text === "y";
 }
 
-function toSafeId(text) {
+function generateFilterIDFromText(text) {
   var input = String(text || "").toLowerCase();
   var out = "filter_";
   var i;
